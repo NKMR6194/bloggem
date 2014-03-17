@@ -390,48 +390,51 @@ class BlogGem < Sinatra::Base
 
   get '/console/entry/:id/' do |id|
     key = id.to_i
-    if key > 0 then
-      entry = Entry.find(key)
-      @title = entry.title
-      @body = entry.body
-      @entryCategory = entry.category.split(",")
-    elsif id == 'new' then
+    if id == 'new' then
       @entryCategory = Array.new
     else
-      redirect to '/console/'
+      begin
+        entry = Entry.find(key)
+        @title = entry.title
+        @body = entry.body
+        @entryCategory = entry.category.split(",")
+      rescue
+        raise Sinatra::NotFound
+      end
     end
-    @category = Category.where(nil)
+
     console_haml :edit
   end
 
   post '/console/entry/:id/post' do |id|
-    key = id.to_i
-    if key > 0 then
-      entry = Entry.find(key)
-    elsif id == 'new' then
+    if id == 'new' then
       entry = Entry.new
     else
-      redirect to '/console/entry/'
+      begin
+        entry = Entry.find(id.to_i)
+      rescue
+        raise Sinatra::NotFound
+      end
     end
+
     entry.title = params[:title]
     entry.body  = params[:entry]
     entry.category = ''
-    if params[:category] != nil then
+    if params[:category] then
       params[:category].each do |c|
         Searcher.create(:entry_id => entry.id, :category_id => c)
       end
       entry.category = params[:category].join(", ")
     end
     entry.save
+
     redirect to '/console/entry/'
   end
 
   post '/console/entry/:id/delete' do |id|
-    if id.to_i > 0 then
+    begin
       entry = Entry.find(key)
-      Comment.where(:entry_id => entry.id).each do |comment|
-        comment.destroy
-      end
+      Comment.where(:entry_id => entry.id).each{ |comment| comment.destroy }
       entry.destroy
     end
     redirect to '/console/entry/'
