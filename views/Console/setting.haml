@@ -2,11 +2,15 @@
   %i.glyphicon.glyphicon-cog
   = " Settings"
 %hr
-  - if params[:status] == "success" then
+  - if @status == "success" then
     .alert.alert-success
       %strong= 'Complete'
       = ' Settings are saved.'
-  %form{:role => "form", :method => "post", :action => "./save"}
+  - elsif @status == 'error' then
+    .alert.alert-danger
+      %strong= 'ERROR'
+      = ' Please check form and submit again.'
+  %form{:role => "form", :method => "post", :action => "./"}
     .form-group
       %label= "Blog Title"
       %input.form-control{:name => "blog title", :type => "text", :value => @settings["blog title"]}

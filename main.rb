@@ -1,12 +1,9 @@
 require 'rubygems'
-require 'sinatra'
+require 'sinatra/base'
 require 'active_record'
 require 'haml'
 require 'json'
 require 'bcrypt'
-require "sqlite3"
-require 'sinatra/reloader'
-register Sinatra::Reloader
 
 class BlogGem < Sinatra::Base
   def initialize(app = nil)
@@ -30,16 +27,21 @@ class BlogGem < Sinatra::Base
 
   class << self
     def init()
+      require 'sqlite3'
       require 'io/console'
 
       print "make database..."
-      SQLite3::Database.new('page.db') do |database|
-        Dir::foreach("./sql") do |sql_file|
-          next if sql_file == "." || sql_file == ".."
-          database.execute(open("./sql/#{sql_file}").read)
+      unless File.exist?('page.db') then
+        SQLite3::Database.new('page.db') do |database|
+          Dir::foreach("./sql") do |sql_file|
+            next if sql_file == "." || sql_file == ".."
+            database.execute(open("./sql/#{sql_file}").read)
+          end
         end
+        print "OK\n"
+      else
+        print "already exists\n"
       end
-      print "OK\n"
 
       print "make directories..."
       dirs = ["public", "public/uploads"]
@@ -361,17 +363,23 @@ class BlogGem < Sinatra::Base
     console_haml :setting
   end
 
-  post "/console/settings/save" do
-    @settings.keys.each do |key|
-      @settings[key] = params[key.to_sym] || @settings[key]
+  post '/console/settings/' do
+    begin
+      @settings.keys.each do |key|
+        @settings[key] = params[key.to_sym] || @settings[key]
+      end
+
+      @settings["comment approval"] = !!params["comment approval".to_sym]
+      @settings["since"] = params["since".to_sym].to_i
+
+      BlogGem.write_json_file(@settings, "settings.json")
+      @status = 'success'
+    rescue
+      @settings = BlogGem.load_json('setting.json')
+      @status = 'error'
     end
 
-    @settings["comment approval"] = !!params["comment approval".to_sym]
-    @settings["since"] = params["since".to_sym].to_i
-
-    #bloggem.set_theme!(@settings['theme'])
-    BlogGem.write_json_file(@settings, "settings.json")
-    redirect to "/console/settings/?status=success"
+    console_haml :setting
   end
 
   #entry
@@ -443,30 +451,39 @@ class BlogGem < Sinatra::Base
 
   #categoty
   get '/console/category/' do
-    @category = Category.order(number: :asc)
     console_haml :category_edit
   end
 
-  post '/console/category/save' do
-    @category = Category.where(nil)
-    params[:category].size.times do |number|
-      category = Category.find(params[:id].shift.to_i)
-      edited = params[:category].shift
-      if edited == "" then
-        category.destroy
-      else
-        category.name = edited
-        category.number = number
-        category.save
-      end
-    end
-    redirect to '/console/category/'
-  end
+  post '/console/category/' do
+    begin
+      if params[:submit] == 'add' then
+        number = Category.count()
+        Category.create(:name => params[:category], :number => number)
+        @status = 'add'
+      elsif params[:submit] == 'save' then
+        Category.transaction do
+          params[:category].size.times do |number|
+            category = Category.find(params[:id].shift.to_i)
+            edited = params[:category].shift
 
-  post '/console/category/new' do
-    number = Category.count()
-    category = Category.create(:name => params[:category], :number => number)
-    redirect to '/console/category/'
+            if edited == "" then
+              category.destroy
+            else
+              category.name = edited
+              category.number = number
+              category.save
+            end
+          end
+
+          @status = 'save'
+        end
+      end
+    rescue
+      @status = 'error'
+    end
+
+    @categoty = Category.order(number: :asc)
+    console_haml :category_edit
   end
 
   #comment
@@ -511,28 +528,37 @@ class BlogGem < Sinatra::Base
     console_haml :members
   end
 
-  post "/console/members/add" do
-    if params[:password] != params[:confirm_password]
-      redirect to "/console/members/?status=password"
+  post '/console/members/' do
+    if nil_or_blank?(params[:password]) then
+      @status = 'error'
+    elsif params[:password] != params[:confirm_password] then
+      @status = 'error'
+    else
+      begin
+        user = User.new(:id => params[:id], :name => params[:name])
+        user.encrypt_password(params[:password])
+        user.save
+        @status = 'success'
+      rescue
+        @status = 'error'
+      end
     end
 
-    user = User.new(:id => params[:id], :name => params[:name])
-    user.encrypt_password(params[:password])
-    if user.save
-      redirect to "/console/members/?status=success"
-    else
-      redirect to "/console/members/?status=error"
+    if @status == 'error' then
+      @newid = params[:id]
+      @newname = params[:name]
     end
+
+    @members = User.where(nil)
+    console_haml :members
   end
 
   post "/console/members/leave" do
-    redirect to "/console/members/" if params[:id] == session[:use_id]
+    raise if params[:id] == session[:use_id]
 
-    begin
-      User.find(params[:id]).destroy
-    end
-    redirect to "/console/members/?status=leave"
+    User.find(params[:id]).destroy
   end
+
 end
 
 

@@ -2,6 +2,14 @@
   %i.glyphicon.glyphicon-user
   = " members"
 %hr
+  - if @status == 'success' then
+    .alert.alert-success
+      %strong= 'Success'
+      = ' New member is added.'
+  - elsif @status == 'error' then
+    .alert.alert-danger
+      %strong= 'File ERROR'
+      = ' Please check "settings.json".'
   %table.table
     %thead
       %tr
@@ -24,19 +32,19 @@
   %i.glyphicon.glyphicon-saved
   = "Add member"
 %hr
-  %form{:role => 'form', :action => './add', :method => 'post'}
+  %form{:role => 'form', :action => './', :method => 'post'}
     .form-group
       %label= "ID:"
-      %input.form-control{:name => "id", :type => "text", :value => ""}
+      %input.form-control{:name => "id", :type => "text", :value => @newid}
     .form-group
       %label= "Name:"
-      %input.form-control{:name => "name", :type => "text", :value => ""}
+      %input.form-control{:name => "name", :type => "text", :value => @newname}
     .form-group
       %label= "Password:"
-      %input.form-control{:name => "password", :type => "password", :value => ""}
+      %input.form-control{:name => "password", :type => "password"}
     .form-group
       %label= "Confirm Password:"
-      %input.form-control{:name =>  "confirm_password", :type => "password", :value => ""}
+      %input.form-control{:name =>  "confirm_password", :type => "password"}
     .form-group
       %button.btn.btn-primary{:type => "submit"}
         %i.glyphicon.glyphicon-ok
